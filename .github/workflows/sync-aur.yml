@@ -6,6 +6,11 @@ on:
   schedule:
     - cron: '15 * * * *'
   workflow_dispatch:
+    inputs:
+      force_aur_push:
+        description: Push current PKGBUILD to AUR even if version is unchanged
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -17,16 +22,10 @@ concurrency:
 jobs:
   sync:
     runs-on: ubuntu-latest
-    container:
-      image: archlinux/archlinux:latest
-      options: --user root
     env:
       UPSTREAM_REPO: Andrew-AI-JR/Desktop-Releases
       PKGNAME: junior-desktop
     steps:
-      - name: Install dependencies
-        run: pacman -Sy --noconfirm git openssh curl jq base-devel
-
       - name: Checkout mirror repository
         uses: actions/checkout@v4
         with:
@@ -42,7 +41,13 @@ jobs:
         run: |
           set -euo pipefail
           chmod +x scripts/update-from-release.sh
-          scripts/update-from-release.sh
+          docker run --rm \
+            -v "${GITHUB_WORKSPACE}:/work" \
+            -w /work \
+            -e UPSTREAM_REPO \
+            -e PKGNAME \
+            archlinux/archlinux:latest \
+            bash -lc 'pacman -Sy --noconfirm curl jq base-devel git >/dev/null && ./scripts/update-from-release.sh'
 
           if git diff --quiet PKGBUILD .SRCINFO; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
@@ -61,7 +66,7 @@ jobs:
           git push
 
       - name: Publish to AUR
-        if: steps.update.outputs.changed == 'true'
+        if: steps.update.outputs.changed == 'true' || inputs.force_aur_push == true
         uses: KSXGitHub/github-actions-deploy-aur@v4.1.1
         with:
           pkgname: junior-desktop

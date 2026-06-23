@@ -50,3 +50,12 @@ ssh-keygen -t ed25519 -f aur-deploy-key -N "" -C "junior-desktop-aur-ci"
 
 Add `aur-deploy-key.pub` to your AUR account SSH keys, then store the private
 key in `AUR_SSH_PRIVATE_KEY`.
+
+The CI deploy public key (register this on https://aur.archlinux.org/account/):
+
+```
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPk/0/xDzSEYigXaZCzyQ/jDtBXJA30763VRnaLkQd8c github-actions-junior-desktop-aur
+```
+
+After the key is registered, run the **Sync AUR package** workflow once to
+create the initial AUR repository.
