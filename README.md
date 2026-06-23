@@ -28,11 +28,13 @@ makepkg -si
 - hourly schedule as a fallback
 - manual `workflow_dispatch`
 
+Each run updates the GitHub mirror when needed and always publishes to AUR.
+
 ### Required GitHub secrets (`junior-desktop-aur`)
 
 | Secret | Description |
 | --- | --- |
-| `AUR_USERNAME` | AUR account username |
+| `AUR_USERNAME` | AUR account username (`heyeddi`) |
 | `AUR_EMAIL` | Email used for AUR commits |
 | `AUR_SSH_PRIVATE_KEY` | Private SSH key registered on https://aur.archlinux.org/account/ |
 
@@ -41,21 +43,3 @@ makepkg -si
 | Secret | Description |
 | --- | --- |
 | `AUR_SYNC_TOKEN` | Fine-grained PAT with `Contents: Read` on this repo and `Actions: Write` on `Andrew-AI-JR/junior-desktop-aur` |
-
-Generate the AUR deploy key:
-
-```bash
-ssh-keygen -t ed25519 -f aur-deploy-key -N "" -C "junior-desktop-aur-ci"
-```
-
-Add `aur-deploy-key.pub` to your AUR account SSH keys, then store the private
-key in `AUR_SSH_PRIVATE_KEY`.
-
-The CI deploy public key (register this on https://aur.archlinux.org/account/):
-
-```
-ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPk/0/xDzSEYigXaZCzyQ/jDtBXJA30763VRnaLkQd8c github-actions-junior-desktop-aur
-```
-
-After the key is registered, run the **Sync AUR package** workflow once to
-create the initial AUR repository.

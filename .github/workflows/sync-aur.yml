@@ -6,11 +6,6 @@ on:
   schedule:
     - cron: '15 * * * *'
   workflow_dispatch:
-    inputs:
-      force_aur_push:
-        description: Push current PKGBUILD to AUR even if version is unchanged
-        type: boolean
-        default: false
 
 permissions:
   contents: write
@@ -49,12 +44,13 @@ jobs:
             archlinux/archlinux:latest \
             bash -lc 'pacman -Sy --noconfirm curl jq base-devel git >/dev/null && ./scripts/update-from-release.sh'
 
+          pkgver="$(grep -E '^pkgver=' PKGBUILD | sed 's/^pkgver=//')"
+          echo "pkgver=${pkgver}" >> "$GITHUB_OUTPUT"
+
           if git diff --quiet PKGBUILD .SRCINFO; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
           else
-            pkgver="$(grep -E '^pkgver=' PKGBUILD | sed 's/^pkgver=//')"
             echo "changed=true" >> "$GITHUB_OUTPUT"
-            echo "pkgver=${pkgver}" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Commit and push mirror repository
@@ -66,13 +62,15 @@ jobs:
           git push
 
       - name: Publish to AUR
-        if: steps.update.outputs.changed == 'true' || inputs.force_aur_push == true
         uses: KSXGitHub/github-actions-deploy-aur@v4.1.1
         with:
           pkgname: junior-desktop
           pkgbuild: ./PKGBUILD
+          assets: |
+            .SRCINFO
           commit_username: ${{ secrets.AUR_USERNAME }}
           commit_email: ${{ secrets.AUR_EMAIL }}
           ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
           commit_message: "Update to ${{ steps.update.outputs.pkgver }}"
+          allow_empty_commits: 'true'
           ssh_keyscan_types: rsa,ecdsa,ed25519
