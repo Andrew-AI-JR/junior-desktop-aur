@@ -27,7 +27,7 @@ jobs:
       PKGNAME: junior-desktop
     steps:
       - name: Checkout mirror repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
