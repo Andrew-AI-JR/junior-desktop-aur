@@ -1,0 +1,73 @@
+name: Sync AUR package
+
+on:
+  repository_dispatch:
+    types: [desktop-release]
+  schedule:
+    - cron: '15 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-aur
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux/archlinux:latest
+      options: --user root
+    env:
+      UPSTREAM_REPO: Andrew-AI-JR/Desktop-Releases
+      PKGNAME: junior-desktop
+    steps:
+      - name: Install dependencies
+        run: pacman -Sy --noconfirm git openssh curl jq base-devel
+
+      - name: Checkout mirror repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Update PKGBUILD from latest release
+        id: update
+        run: |
+          set -euo pipefail
+          chmod +x scripts/update-from-release.sh
+          scripts/update-from-release.sh
+
+          if git diff --quiet PKGBUILD .SRCINFO; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            pkgver="$(grep -E '^pkgver=' PKGBUILD | sed 's/^pkgver=//')"
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "pkgver=${pkgver}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Commit and push mirror repository
+        if: steps.update.outputs.changed == 'true'
+        run: |
+          pkgver="${{ steps.update.outputs.pkgver }}"
+          git add PKGBUILD .SRCINFO
+          git commit -m "chore(aur): update to ${pkgver}"
+          git push
+
+      - name: Publish to AUR
+        if: steps.update.outputs.changed == 'true'
+        uses: KSXGitHub/github-actions-deploy-aur@v4.1.1
+        with:
+          pkgname: junior-desktop
+          pkgbuild: ./PKGBUILD
+          commit_username: ${{ secrets.AUR_USERNAME }}
+          commit_email: ${{ secrets.AUR_EMAIL }}
+          ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+          commit_message: "Update to ${{ steps.update.outputs.pkgver }}"
+          ssh_keyscan_types: rsa,ecdsa,ed25519
