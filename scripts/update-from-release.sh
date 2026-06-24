@@ -46,8 +46,11 @@ if [[ "$(id -u)" -eq 0 ]]; then
   if ! id builduser >/dev/null 2>&1; then
     useradd -m builduser
   fi
-  chown -R builduser:builduser .
-  su builduser -c 'makepkg --printsrcinfo > .SRCINFO'
+  _tmp="$(mktemp -d)"
+  cp PKGBUILD "$_tmp/"
+  chown -R builduser:builduser "$_tmp"
+  su builduser -c "cd '${_tmp}' && makepkg --printsrcinfo" > .SRCINFO
+  rm -rf "$_tmp"
 else
   makepkg --printsrcinfo > .SRCINFO
 fi
