@@ -39,13 +39,21 @@ jobs:
         run: |
           set -euo pipefail
           chmod +x scripts/update-from-release.sh
+
+          workdir="$(mktemp -d)"
+          cp PKGBUILD .SRCINFO "${workdir}/"
+
           docker run --rm \
-            -v "${GITHUB_WORKSPACE}:/work" \
+            -v "${workdir}:/work" \
+            -v "${GITHUB_WORKSPACE}/scripts/update-from-release.sh:/work/update-from-release.sh:ro" \
             -w /work \
             -e UPSTREAM_REPO \
             -e PKGNAME \
             archlinux/archlinux:latest \
-            bash -lc 'pacman -Sy --noconfirm curl jq base-devel git >/dev/null && ./scripts/update-from-release.sh'
+            bash -lc 'pacman -Sy --noconfirm curl jq base-devel git >/dev/null && ./update-from-release.sh'
+
+          cp "${workdir}/PKGBUILD" "${workdir}/.SRCINFO" .
+          rm -rf "${workdir}"
 
           pkgver="$(grep -E '^pkgver=' PKGBUILD | sed 's/^pkgver=//')"
           echo "pkgver=${pkgver}" >> "$GITHUB_OUTPUT"
@@ -59,10 +67,20 @@ jobs:
       - name: Commit and push mirror repository
         if: steps.update.outputs.changed == 'true'
         run: |
+          set -euo pipefail
           pkgver="${{ steps.update.outputs.pkgver }}"
           git add PKGBUILD .SRCINFO
           git commit -m "chore(aur): update to ${pkgver}"
-          git push
+
+          for attempt in 1 2 3; do
+            if git pull --rebase origin main && git push origin main; then
+              exit 0
+            fi
+            echo "push attempt ${attempt} failed, retrying..." >&2
+            sleep 5
+          done
+          echo "failed to push after 3 attempts" >&2
+          exit 1
 
       - name: Publish to AUR
         uses: KSXGitHub/github-actions-deploy-aur@v4.1.1
