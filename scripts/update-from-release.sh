@@ -42,6 +42,14 @@ sed -i "s/^pkgver=.*/pkgver=${pkgver}/" "$PKGBUILD"
 sed -i 's/^pkgrel=.*/pkgrel=1/' "$PKGBUILD"
 sed -i "s/^sha256sums=.*/sha256sums=('${sha256}')/" "$PKGBUILD"
 
-makepkg --printsrcinfo > .SRCINFO
+if [[ "$(id -u)" -eq 0 ]]; then
+  if ! id builduser >/dev/null 2>&1; then
+    useradd -m builduser
+  fi
+  chown -R builduser:builduser .
+  su builduser -c 'makepkg --printsrcinfo > .SRCINFO'
+else
+  makepkg --printsrcinfo > .SRCINFO
+fi
 
 echo "updated to ${pkgver} (${sha256})"
