@@ -83,15 +83,13 @@ jobs:
           exit 1
 
       - name: Publish to AUR
-        uses: KSXGitHub/github-actions-deploy-aur@v4.1.1
-        with:
-          pkgname: junior-desktop
-          pkgbuild: ./PKGBUILD
-          assets: |
-            .SRCINFO
-          commit_username: ${{ secrets.AUR_USERNAME }}
-          commit_email: ${{ secrets.AUR_EMAIL }}
-          ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
-          commit_message: "Update to ${{ steps.update.outputs.pkgver }}"
-          allow_empty_commits: 'true'
-          ssh_keyscan_types: rsa,ecdsa,ed25519
+        env:
+          AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+          AUR_USERNAME: ${{ secrets.AUR_USERNAME }}
+          AUR_EMAIL: ${{ secrets.AUR_EMAIL }}
+          PKGNAME: junior-desktop
+          COMMIT_MESSAGE: Update to ${{ steps.update.outputs.pkgver }}
+        run: |
+          set -euo pipefail
+          chmod +x scripts/publish-to-aur.sh
+          ./scripts/publish-to-aur.sh

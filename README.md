@@ -28,7 +28,8 @@ makepkg -si
 - hourly schedule as a fallback
 - manual `workflow_dispatch`
 
-Each run updates the GitHub mirror when needed and always publishes to AUR.
+Each run updates the GitHub mirror when needed, then syncs to AUR over SSH
+(only committing when `PKGBUILD` / `.SRCINFO` differ).
 
 ### Required GitHub secrets (`junior-desktop-aur`)
 
