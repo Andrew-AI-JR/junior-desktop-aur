@@ -7,7 +7,8 @@ on:
   repository_dispatch:
     types: [desktop-release]
   schedule:
-    - cron: '15 * * * *'
+    # Twice daily (06:15 and 18:15 UTC)
+    - cron: '15 6,18 * * *'
   workflow_dispatch:
 
 permissions:
@@ -64,8 +65,23 @@ jobs:
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Publish to AUR
+        id: publish
+        env:
+          AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+          AUR_USERNAME: ${{ secrets.AUR_USERNAME }}
+          AUR_EMAIL: ${{ secrets.AUR_EMAIL }}
+          PKGNAME: junior-desktop
+          COMMIT_MESSAGE: Update to ${{ steps.update.outputs.pkgver }}
+        run: |
+          set -euo pipefail
+          chmod +x scripts/publish-to-aur.sh
+          ./scripts/publish-to-aur.sh
+
+      # Only bump the mirror version after a successful AUR publish.
+      # If AUR is in maintenance, publish soft-succeeds and we leave PKGBUILD unchanged on main.
       - name: Commit and push mirror repository
-        if: steps.update.outputs.changed == 'true'
+        if: steps.update.outputs.changed == 'true' && steps.publish.outputs.maintenance != 'true'
         run: |
           set -euo pipefail
           pkgver="${{ steps.update.outputs.pkgver }}"
@@ -81,15 +97,3 @@ jobs:
           done
           echo "failed to push after 3 attempts" >&2
           exit 1
-
-      - name: Publish to AUR
-        env:
-          AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
-          AUR_USERNAME: ${{ secrets.AUR_USERNAME }}
-          AUR_EMAIL: ${{ secrets.AUR_EMAIL }}
-          PKGNAME: junior-desktop
-          COMMIT_MESSAGE: Update to ${{ steps.update.outputs.pkgver }}
-        run: |
-          set -euo pipefail
-          chmod +x scripts/publish-to-aur.sh
-          ./scripts/publish-to-aur.sh

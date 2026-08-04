@@ -17,6 +17,23 @@ if [[ ! -f "$PKGBUILD" || ! -f "$SRCINFO" ]]; then
   exit 1
 fi
 
+if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
+  echo "maintenance=false" >>"$GITHUB_OUTPUT"
+fi
+
+skip_for_maintenance() {
+  echo "AUR is under maintenance; skipping publish without failing" >&2
+  if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
+    echo "maintenance=true" >>"$GITHUB_OUTPUT"
+  fi
+  exit 0
+}
+
+is_aur_maintenance() {
+  local log=$1
+  grep -qi 'AUR is down due to maintenance' "$log"
+}
+
 # Official AUR SSH fingerprints from https://aur.archlinux.org/
 expected_fps=(
   'SHA256:RFzBCUItH9LZS0cKB5UE6ceAYhBD5C8GeOBip8Z11+4'
@@ -70,12 +87,17 @@ export GIT_SSH_COMMAND="ssh -i ${ssh_dir}/aur -o IdentitiesOnly=yes -o UserKnown
 
 workdir="$(mktemp -d)"
 aur_url="ssh://aur@${AUR_HOST}/${PKGNAME}.git"
+git_log="$ssh_dir/git.log"
 
 attempt=1
 while true; do
   rm -rf "$workdir/repo"
-  if git clone "$aur_url" "$workdir/repo"; then
+  if git clone "$aur_url" "$workdir/repo" >"$git_log" 2>&1; then
     break
+  fi
+  cat "$git_log" >&2
+  if is_aur_maintenance "$git_log"; then
+    skip_for_maintenance
   fi
   if [[ "$attempt" -ge "$MAX_ATTEMPTS" ]]; then
     echo "error: failed to clone $aur_url after ${MAX_ATTEMPTS} attempts" >&2
@@ -102,9 +124,14 @@ git -C "$workdir/repo" commit -m "$COMMIT_MESSAGE"
 
 attempt=1
 while true; do
-  if git -C "$workdir/repo" push origin HEAD:master; then
+  if git -C "$workdir/repo" push origin HEAD:master >"$git_log" 2>&1; then
+    cat "$git_log"
     echo "published ${PKGNAME} to AUR"
     exit 0
+  fi
+  cat "$git_log" >&2
+  if is_aur_maintenance "$git_log"; then
+    skip_for_maintenance
   fi
   if [[ "$attempt" -ge "$MAX_ATTEMPTS" ]]; then
     echo "error: failed to push to AUR after ${MAX_ATTEMPTS} attempts" >&2
